@@ -11,7 +11,19 @@ One small artificial-life world, running at one tick per real second since genes
 Written into this file by the kernel at every heartbeat.
 
 <!-- status:start -->
-_Status appears after the first heartbeat._
+**Eon 1** since tick 0 · **canonical tick** 0 · **genesis** 2026-08-30T15:42:34.270Z · **heartbeat** 2026-08-30T15:42:34.287Z
+
+**Iteration** 1 · **last cycle** 2026-08-30T15:44:14.325Z · **world score** 0.6501 · **failure streak** 1
+
+**Sun (budget)** $0.07 spent of $50 this month (2026-08) · lifetime key usage $0.07
+
+| Role | Mind currently in use |
+|---|---|
+| steward | `google/gemini-3.7-flash` |
+| physicist | `anthropic/claude-sonnet-5` |
+| ui_engineer | `moonshotai/kimi-k3` |
+| judge | `openai/gpt-5.6-sol` |
+| chronicler | `google/gemini-3.7-flash` |
 <!-- status:end -->
 
 ## How it works
