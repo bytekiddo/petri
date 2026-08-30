@@ -1,0 +1,5 @@
+node_modules
+site/dist
+site/public
+state/candidate.json
+state/cycle.json
