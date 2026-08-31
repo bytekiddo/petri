@@ -1,9 +1,9 @@
 {
-  "iteration": 2,
+  "iteration": 3,
   "month": "2026-08",
-  "monthSpend": 0.239572,
+  "monthSpend": 0.37921950000000004,
   "monthlyBudget": 50,
-  "failStreak": 2,
+  "failStreak": 0,
   "models": {
     "steward": "google/gemini-3.7-flash",
     "physicist": "anthropic/claude-sonnet-5",
@@ -15,15 +15,15 @@
     "survival": 1,
     "persistence": 1,
     "diversity": 1,
-    "dynamism": 0.18753686136716724,
-    "complexity": 0.7515694754464286,
-    "score": 0.6758,
+    "dynamism": 0.18544909966886208,
+    "complexity": 0.7522234235491072,
+    "score": 0.6744,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 50240",
-    "wallMs": 38819
+    "from": "tick 98758",
+    "wallMs": 42306
   },
-  "lastRun": "2026-08-31T05:43:36.053Z",
+  "lastRun": "2026-08-31T19:11:29.089Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 50240,
-  "heartbeatAt": "2026-08-31T05:40:38.543Z",
+  "canonTick": 98758,
+  "heartbeatAt": "2026-08-31T19:09:40.927Z",
   "keyUsage": {
-    "usage": 0.150406,
+    "usage": 0.2528245,
     "limit": null
   }
 }
