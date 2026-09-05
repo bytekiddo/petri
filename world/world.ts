@@ -11,6 +11,9 @@ export type Checkpoint = {
   creatures: { x: number; y: number; energy: number; age: number; genome: Record<string, number> }[];
 };
 
+const FERTILITY_DRIFT_INTERVAL = 20;
+const TAU = Math.PI * 2;
+
 export class World implements Env {
   w = RULES.width; h = RULES.height;
   food: Float32Array;
@@ -78,7 +81,30 @@ export class World implements Env {
     this.born.length = 0;
   }
 
+  private driftFertility() {
+    this.fertility.fill(0.05);
+    for (let p = 0; p < RULES.foodPatches; p++) {
+      const phase = p * 2.399963229728653;
+      const baseX = ((0.137 + p * 0.618033988749895) % 1) * this.w;
+      const baseY = ((0.371 + p * 0.414213562373095) % 1) * this.h;
+      const cx = (baseX + Math.sin(this.tick * (0.00072 + p * 0.000061) + phase) * 30 + this.w) % this.w;
+      const cy = (baseY + Math.cos(this.tick * (0.00091 + p * 0.000053) + phase * 1.37) * 26 + this.h) % this.h;
+      const r = 9 + ((p * 11) % 15);
+      const scale = 2 * r * r;
+
+      for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+        const dx = Math.min(Math.abs(x - cx), this.w - Math.abs(x - cx));
+        const dy = Math.min(Math.abs(y - cy), this.h - Math.abs(y - cy));
+        const f = Math.exp(-(dx * dx + dy * dy) / scale);
+        const i = y * this.w + x;
+        if (f > this.fertility[i]) this.fertility[i] = f;
+      }
+    }
+  }
+
   step() {
+    if (this.tick % FERTILITY_DRIFT_INTERVAL === 0) this.driftFertility();
+
     const { food, fertility } = this;
     for (let i = 0; i < food.length; i++) food[i] = Math.min(RULES.foodMax, food[i] + RULES.foodGrowth * fertility[i]);
     // Random turn order so nobody has a permanent first-mover advantage.
