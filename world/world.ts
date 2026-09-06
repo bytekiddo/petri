@@ -87,8 +87,15 @@ export class World implements Env {
       const phase = p * 2.399963229728653;
       const baseX = ((0.137 + p * 0.618033988749895) % 1) * this.w;
       const baseY = ((0.371 + p * 0.414213562373095) % 1) * this.h;
-      const cx = (baseX + Math.sin(this.tick * (0.00072 + p * 0.000061) + phase) * 30 + this.w) % this.w;
-      const cy = (baseY + Math.cos(this.tick * (0.00091 + p * 0.000053) + phase * 1.37) * 26 + this.h) % this.h;
+
+      // Broadly separated periods prevent the patches from sweeping the dish in sync,
+      // while the range of orbit sizes leaves both mobile fronts and local refuges.
+      const orbitX = 14 + ((p * 17) % 27);
+      const orbitY = 12 + ((p * 19) % 25);
+      const periodX = 3600 + ((p * 1543) % 6200);
+      const periodY = 4300 + ((p * 2371) % 5700);
+      const cx = (baseX + Math.sin(this.tick * TAU / periodX + phase) * orbitX + this.w) % this.w;
+      const cy = (baseY + Math.cos(this.tick * TAU / periodY + phase * 1.37) * orbitY + this.h) % this.h;
       const r = 9 + ((p * 11) % 15);
       const scale = 2 * r * r;
 
