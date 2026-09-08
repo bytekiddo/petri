@@ -1,29 +1,29 @@
 {
-  "iteration": 17,
+  "iteration": 18,
   "month": "2026-09",
-  "monthSpend": 2.1879425749999997,
+  "monthSpend": 2.3651140749999997,
   "monthlyBudget": 50,
-  "failStreak": 0,
+  "failStreak": 1,
   "models": {
     "steward": "google/gemini-3.8-flash",
-    "physicist": "openai/gpt-5.6-sol",
+    "physicist": "anthropic/claude-sonnet-5",
     "ui_engineer": "google/gemini-3.8-flash",
-    "judge": "anthropic/claude-sonnet-5",
+    "judge": "openai/gpt-5.6-sol",
     "chronicler": "google/gemini-3.8-flash"
   },
   "baseline": {
     "survival": 1,
     "persistence": 1,
     "diversity": 1,
-    "dynamism": 0.22320188911818245,
-    "complexity": 0.7909109933035715,
-    "score": 0.7069,
+    "dynamism": 0.21007949247771074,
+    "complexity": 0.7681797572544644,
+    "score": 0.6943,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 698555",
-    "wallMs": 47649
+    "from": "tick 737928",
+    "wallMs": 45428
   },
-  "lastRun": "2026-09-07T17:49:07.038Z",
+  "lastRun": "2026-09-08T04:45:47.778Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 698555,
-  "heartbeatAt": "2026-09-07T17:45:31.219Z",
+  "canonTick": 737928,
+  "heartbeatAt": "2026-09-08T04:42:05.393Z",
   "keyUsage": {
-    "usage": 2.567162075,
+    "usage": 2.680535075,
     "limit": null
   }
 }
