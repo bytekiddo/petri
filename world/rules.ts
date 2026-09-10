@@ -13,7 +13,9 @@ export const RULES = {
   eatRate: 0.25,       // max plant energy consumed per tick
   maxEnergy: 2,
   metabolism: 0.005,   // baseline cost per tick
-  moveCost: 0.01,     // per move, scaled by speed
+  moveCost: 0.01,      // per move, scaled by speed
+  crowdingThreshold: 2, // immediate neighbors required before movement is subsidized
+  crowdingMoveDiscount: 0.25, // fraction of move cost rebated in crowded cells
   senseCost: 0.003,    // per tick, scaled by sense
   attackThreshold: 0.5,
   attackGain: 0.6,     // fraction of the victim's energy the attacker keeps
@@ -43,6 +45,16 @@ export function stepCreature(c: Creature, env: Env): void {
   const g = c.genome;
   const hunter = g.aggression > RULES.attackThreshold;
   const radius = senseRadius(g);
+
+  // Immediate occupancy is a cheap local measure of crowding. Dense clusters make
+  // departure cheaper, so individuals can more readily disperse into open space.
+  let neighbors = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    if (!dx && !dy) continue;
+    const x = (c.x + dx + w) % w, y = (c.y + dy + h) % h;
+    if (env.occupant(x, y)) neighbors++;
+  }
+  const crowded = neighbors > RULES.crowdingThreshold;
 
   // Look around: best food cell, and (if hunting) the nearest weaker creature.
   let bestScore = 0, tx = c.x, ty = c.y, prey: Creature | null = null, preyDist = Infinity;
@@ -78,8 +90,10 @@ export function stepCreature(c: Creature, env: Env): void {
   food[i] -= bite;
   c.energy = Math.min(RULES.maxEnergy, c.energy + bite);
 
-  // Pay for living.
-  c.energy -= RULES.metabolism + (moved ? RULES.moveCost * g.speed : 0) + RULES.senseCost * g.sense;
+  // Pay for living. Crowding discounts movement enough to encourage dispersal,
+  // without altering baseline metabolism or the value of stationary foraging.
+  const moveMultiplier = crowded ? 1 - RULES.crowdingMoveDiscount : 1;
+  c.energy -= RULES.metabolism + (moved ? RULES.moveCost * g.speed * moveMultiplier : 0) + RULES.senseCost * g.sense;
   c.age++;
   if (c.energy <= 0) { env.kill(c); return; }
 
