@@ -1,9 +1,9 @@
 {
-  "iteration": 24,
+  "iteration": 25,
   "month": "2026-09",
   "monthSpend": 3.0425700499999997,
   "monthlyBudget": 50,
-  "failStreak": 1,
+  "failStreak": 2,
   "models": {
     "steward": "google/gemini-3.8-flash",
     "physicist": "openai/gpt-5.6-terra",
@@ -14,16 +14,16 @@
   "baseline": {
     "survival": 1,
     "persistence": 1,
-    "diversity": 0.9972415330261588,
-    "dynamism": 0.20292838922384568,
-    "complexity": 0.7500435965401786,
-    "score": 0.6859,
+    "diversity": 1,
+    "dynamism": 0.21305468659819934,
+    "complexity": 0.7510637555803572,
+    "score": 0.6932,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 997335",
-    "wallMs": 47563
+    "from": "tick 1039703",
+    "wallMs": 55318
   },
-  "lastRun": "2026-09-11T04:47:25.941Z",
+  "lastRun": "2026-09-11T16:33:23.777Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 997335,
-  "heartbeatAt": "2026-09-11T04:45:40.659Z",
+  "canonTick": 1039703,
+  "heartbeatAt": "2026-09-11T16:31:28.564Z",
   "keyUsage": {
-    "usage": 3.40590905,
+    "usage": 3.42178955,
     "limit": null
   }
 }
