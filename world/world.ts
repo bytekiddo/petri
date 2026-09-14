@@ -13,6 +13,8 @@ export type Checkpoint = {
 
 const FERTILITY_DRIFT_INTERVAL = 20;
 const TAU = Math.PI * 2;
+const SEASON_PERIOD = 2400;
+const SEASON_AMPLITUDE = 0.18;
 
 export class World implements Env {
   w = RULES.width; h = RULES.height;
@@ -83,6 +85,12 @@ export class World implements Env {
 
   private driftFertility() {
     this.fertility.fill(0.05);
+
+    // A mild global season changes the carrying capacity of every patch together.
+    // Its floor leaves productive refuges throughout the lean phase, while its long
+    // period lets consumer populations respond rather than merely averaging it out.
+    const seasonalStrength = 1 + SEASON_AMPLITUDE * Math.sin(this.tick * TAU / SEASON_PERIOD);
+
     for (let p = 0; p < RULES.foodPatches; p++) {
       const phase = p * 2.399963229728653;
       const baseX = ((0.137 + p * 0.618033988749895) % 1) * this.w;
@@ -102,7 +110,7 @@ export class World implements Env {
       for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
         const dx = Math.min(Math.abs(x - cx), this.w - Math.abs(x - cx));
         const dy = Math.min(Math.abs(y - cy), this.h - Math.abs(y - cy));
-        const f = Math.exp(-(dx * dx + dy * dy) / scale);
+        const f = Math.exp(-(dx * dx + dy * dy) / scale) * seasonalStrength;
         const i = y * this.w + x;
         if (f > this.fertility[i]) this.fertility[i] = f;
       }
