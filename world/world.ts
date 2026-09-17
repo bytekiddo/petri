@@ -14,7 +14,7 @@ export type Checkpoint = {
 const FERTILITY_DRIFT_INTERVAL = 20;
 const TAU = Math.PI * 2;
 const SEASON_PERIOD = 2400;
-const SEASON_AMPLITUDE = 0.21;
+const SEASON_AMPLITUDE = 0.24;
 
 export class World implements Env {
   w = RULES.width; h = RULES.height;
