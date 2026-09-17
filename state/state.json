@@ -1,9 +1,9 @@
 {
-  "iteration": 35,
+  "iteration": 36,
   "month": "2026-09",
-  "monthSpend": 3.57981262,
+  "monthSpend": 3.67993912,
   "monthlyBudget": 50,
-  "failStreak": 0,
+  "failStreak": 1,
   "models": {
     "steward": "deepseek/deepseek-v4.1-flash",
     "physicist": "openai/gpt-5.6-terra",
@@ -15,15 +15,15 @@
     "survival": 1,
     "persistence": 1,
     "diversity": 1,
-    "dynamism": 0.4378724372421262,
-    "complexity": 0.7709699358258929,
-    "score": 0.8048,
+    "dynamism": 0.43616206520060413,
+    "complexity": 0.7891060965401786,
+    "score": 0.8079,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 1473497",
-    "wallMs": 52858
+    "from": "tick 1516413",
+    "wallMs": 36635
   },
-  "lastRun": "2026-09-16T17:04:56.475Z",
+  "lastRun": "2026-09-17T04:59:34.854Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 1473497,
-  "heartbeatAt": "2026-09-16T17:01:17.122Z",
+  "canonTick": 1516413,
+  "heartbeatAt": "2026-09-17T04:56:42.879Z",
   "keyUsage": {
-    "usage": 3.95903212,
+    "usage": 4.00928262,
     "limit": null
   }
 }
