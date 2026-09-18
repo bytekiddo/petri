@@ -1,7 +1,7 @@
 {
-  "iteration": 37,
+  "iteration": 38,
   "month": "2026-09",
-  "monthSpend": 3.77958142,
+  "monthSpend": 3.89399167,
   "monthlyBudget": 50,
   "failStreak": 0,
   "models": {
@@ -15,15 +15,15 @@
     "survival": 1,
     "persistence": 1,
     "diversity": 1,
-    "dynamism": 0.4797790313777147,
-    "complexity": 0.7869698660714286,
-    "score": 0.823,
+    "dynamism": 0.5771545343062653,
+    "complexity": 0.789794921875,
+    "score": 0.8546,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 1559978",
-    "wallMs": 46400
+    "from": "tick 1602313",
+    "wallMs": 50499
   },
-  "lastRun": "2026-09-17T17:05:44.661Z",
+  "lastRun": "2026-09-18T04:52:01.384Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 1559978,
-  "heartbeatAt": "2026-09-17T17:02:35.376Z",
+  "canonTick": 1602313,
+  "heartbeatAt": "2026-09-18T04:48:37.397Z",
   "keyUsage": {
-    "usage": 4.15880092,
+    "usage": 4.27321117,
     "limit": null
   }
 }
