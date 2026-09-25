@@ -15,12 +15,9 @@ const FERTILITY_DRIFT_INTERVAL = 20;
 const TAU = Math.PI * 2;
 const SEASON_PERIOD = 2400;
 
-// Amplitude-sweep point: compare this 0.25 law against the accepted 0.24 law using
-// 8 independent seeds, 12000 ticks per seed, identical checkpoint origin and sampling
-// interval. Report mean metric deltas with seed-bootstrap 80% intervals, plus per-seed
-// extinction time and minimum-population summaries to distinguish surviving refuges
-// from short-horizon survival ceilings.
-const SEASON_AMPLITUDE = 0.25;
+// Stronger seasonal forcing: a larger amplitude makes carrying capacity oscillate more
+// sharply, encouraging population cycles; the unchanged fertility floor keeps refuges.
+const SEASON_AMPLITUDE = 0.65;
 
 export class World implements Env {
   w = RULES.width; h = RULES.height;
