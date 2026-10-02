@@ -13,6 +13,15 @@ const state = JSON.parse(readFileSync('state/state.json', 'utf8'));
 const models: Record<Role, string> = state.models;
 let cost = 0;
 
+type ParseFailure = {
+  role: Role;
+  model: string;
+  response: string;
+  input: string;
+  error: string;
+};
+let parseFailure: ParseFailure | undefined;
+
 const role = (r: Role) => readFileSync(`agents/roles/${r}.md`, 'utf8');
 const sh = (c: string) => { try { return execSync(c, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { return `ERROR ${(e as { stdout?: string; stderr?: string }).stdout ?? ''}${(e as { stderr?: string }).stderr ?? ''}`; } };
 const tree = (d: string): string[] => readdirSync(d).flatMap(f => { const p = `${d}/${f}`; return p.includes('site/public') ? [] : statSync(p).isDirectory() ? tree(p) : [p]; });
@@ -30,7 +39,27 @@ async function llm(model: string, system: string, user: string): Promise<string>
   cost += data.usage?.cost ?? 0;
   return data.choices?.[0]?.message.content ?? '';
 }
-const json = <T,>(s: string): T => JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1));
+
+// Preserve the existing extraction and strict parsing behavior. On failure,
+// retain both the untouched reply and the exact input to JSON.parse; neither
+// a truncated error message nor a synthetic example can reproduce that input.
+const json = <T,>(s: string, source: Role): T => {
+  const input = s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1);
+  try {
+    return JSON.parse(input);
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      parseFailure = {
+        role: source,
+        model: models[source],
+        response: s,
+        input,
+        error: String(e),
+      };
+    }
+    throw e;
+  }
+};
 
 async function marketplace(): Promise<string> {
   const { data } = await (await fetch('https://openrouter.ai/api/v1/models')).json() as { data: { id: string; context_length: number; pricing: { prompt: string; completion: string } }[] };
@@ -57,7 +86,7 @@ async function main() {
 
   // 1. The steward chooses minds and where to focus this cycle.
   const plan = json<{ models: Partial<Record<Role, string>>; focus: keyof typeof FOCUS; note: string }>(
-    await llm(models.steward, role('steward'), `${budget}\nCurrent minds: ${JSON.stringify(models)}\nBaseline metrics: ${baseline}\n\nRecent journal:\n${recentJournal()}\n\nMarketplace (id, prompt/completion price, context):\n${await marketplace()}`));
+    await llm(models.steward, role('steward'), `${budget}\nCurrent minds: ${JSON.stringify(models)}\nBaseline metrics: ${baseline}\n\nRecent journal:\n${recentJournal()}\n\nMarketplace (id, prompt/completion price, context):\n${await marketplace()}`), 'steward');
   for (const r of ROLES) if (plan.models?.[r]) models[r] = plan.models[r]!;
   const focus = plan.focus in FOCUS ? plan.focus : 'world';
   const proposer = FOCUS[focus];
@@ -74,7 +103,7 @@ async function main() {
 
   // 4. The judge decides.
   const verdict = json<{ verdict: 'merge' | 'reject'; reasoning: string }>(
-    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nDiff:\n${diff}`));
+    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nDiff:\n${diff}`), 'judge');
 
   // 5. The chronicler writes it down for the humans watching.
   const journal = await llm(models.chronicler, role('chronicler'),
@@ -85,6 +114,11 @@ async function main() {
 
 main().catch(e => {
   // Even a crash should cost the kernel nothing to understand.
-  writeFileSync('state/cycle.json', JSON.stringify({ role: 'overseers', focus: 'crash', hypothesis: 'overseers crashed', verdict: 'reject', reasoning: String(e).slice(0, 800), cost, journal: `The overseers could not complete the cycle.\n\n\`\`\`\n${String(e).slice(0, 800)}\n\`\`\``, models }, null, 2));
+  // Also retain the fixture in the journal, which outlives state/cycle.json.
+  // Indented JSON avoids letting response text terminate a Markdown fence.
+  const fixture = parseFailure
+    ? `\n\nRecorded parser failure (JSON fixture; not repaired or retried):\n\n${JSON.stringify(parseFailure, null, 2).split('\n').map(line => `    ${line}`).join('\n')}`
+    : '';
+  writeFileSync('state/cycle.json', JSON.stringify({ role: 'overseers', focus: 'crash', hypothesis: 'overseers crashed', verdict: 'reject', reasoning: String(e).slice(0, 800), cost, journal: `The overseers could not complete the cycle.\n\n\`\`\`\n${String(e).slice(0, 800)}\n\`\`\`${fixture}`, models, parseFailure }, null, 2));
   process.exit(0);
 });
