@@ -99,7 +99,11 @@ async function main() {
   const build = sh('npm run build 2>&1 | tail -5');
   const sim = sh('npm run sim -- --from canon/checkpoint.json --out state/candidate.json 2>&1 | tail -8');
   const candidate = existsSync('state/candidate.json') ? readFileSync('state/candidate.json', 'utf8') : 'sim produced nothing';
-  const diff = sh('git diff --stat && git diff -- . ":!site/public"').slice(0, 30000);
+  // Only diff what the overseers may write. canon/ and state/ are kernel-owned and
+  // change every cycle; their huge diffs overflow execSync's buffer (the old
+  // "ERROR" header) and made pre-existing churn look like part of the proposal.
+  const scope = 'world site agents README.md ":!site/public"';
+  const diff = `(scope: ${ALLOWED.join(' ')}; canon/ and state/ are kernel-owned and excluded)\n${sh(`git diff --stat -- ${scope}; git diff -- ${scope}`)}`.slice(0, 30000);
 
   // 4. The judge decides.
   const verdict = json<{ verdict: 'merge' | 'reject'; reasoning: string }>(
