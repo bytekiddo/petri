@@ -12,7 +12,7 @@ export const RULES = {
   foodMax: 1,
   eatRate: 0.25,       // max plant energy consumed per tick
   maxEnergy: 2,
-  metabolism: 0.005,   // baseline cost per tick
+  metabolism: 0.004,   // baseline cost per tick
   moveCost: 0.01,      // per move, scaled by speed
   crowdingThreshold: 2, // immediate neighbors required before movement is subsidized
   crowdingMoveDiscount: 0.25, // fraction of move cost rebated in crowded cells
