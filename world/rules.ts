@@ -85,8 +85,13 @@ export function stepCreature(c: Creature, env: Env): void {
   }
 
   // Eat what's underfoot. Hunters digest plants poorly: the trade-off that makes niches.
+  // Leave food that cannot fit in the creature's energy reserve available to others,
+  // rather than removing it and then discarding its energy at the cap.
   const i = c.y * w + c.x;
-  const bite = Math.min(food[i], RULES.eatRate) * (1 - g.aggression * 0.8);
+  const bite = Math.min(
+    Math.min(food[i], RULES.eatRate) * (1 - g.aggression * 0.8),
+    Math.max(0, RULES.maxEnergy - c.energy),
+  );
   food[i] -= bite;
   c.energy = Math.min(RULES.maxEnergy, c.energy + bite);
 
