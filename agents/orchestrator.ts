@@ -22,6 +22,11 @@ type ParseFailure = {
 };
 let parseFailure: ParseFailure | undefined;
 
+type DiffCompleteness = {
+  ok: boolean;
+  warnings: string[];
+};
+
 const role = (r: Role) => readFileSync(`agents/roles/${r}.md`, 'utf8');
 const sh = (c: string) => { try { return execSync(c, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); } catch (e) { return `ERROR ${(e as { stdout?: string; stderr?: string }).stdout ?? ''}${(e as { stderr?: string }).stderr ?? ''}`; } };
 const tree = (d: string): string[] => readdirSync(d).flatMap(f => { const p = `${d}/${f}`; return p.includes('site/public') ? [] : statSync(p).isDirectory() ? tree(p) : [p]; });
@@ -76,8 +81,72 @@ function apply(text: string): { hypothesis: string; touched: string[] } {
     if (p.includes('..') || !ALLOWED.some(a => p === a || p.startsWith(a))) continue;
     mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, m[2]); touched.push(p);
   }
-  for (const m of text.matchAll(/=== DELETE (\S+) ===/g)) if (ALLOWED.some(a => m[1].startsWith(a)) && existsSync(m[1])) { unlinkSync(m[1]); touched.push(`-${m[1]}`); }
+  for (const m of text.matchAll(/=== DELETE (\S+) ===/g)) {
+    const p = m[1];
+    if (p.includes('..') || !ALLOWED.some(a => p.startsWith(a))) continue;
+    if (existsSync(p)) { unlinkSync(p); touched.push(`-${p}`); }
+  }
   return { hypothesis, touched };
+}
+
+const allowedEditablePath = (p: string) => !p.includes('..') && ALLOWED.some(a => p === a || p.startsWith(a));
+
+function checkDeclaredVsTouched(reply: string, touched: string[]): DiffCompleteness {
+  const declared = new Set<string>();
+  const warnings: string[] = [];
+  for (const m of reply.matchAll(/=== FILE (\S+) ===/g)) {
+    const p = m[1];
+    if (!allowedEditablePath(p)) { warnings.push(`unsafe or out-of-scope FILE path ignored: ${p}`); continue; }
+    declared.add(p);
+  }
+  for (const m of reply.matchAll(/=== DELETE (\S+) ===/g)) {
+    const p = m[1];
+    if (!allowedEditablePath(p)) { warnings.push(`unsafe or out-of-scope DELETE path ignored: ${p}`); continue; }
+    declared.add(`-${p}`);
+  }
+  const touchedSet = new Set(touched);
+  for (const d of declared) if (!touchedSet.has(d)) warnings.push(`declared but not applied: ${d}`);
+  for (const t of touchedSet) if (!declared.has(t)) warnings.push(`applied but not declared: ${t}`);
+  return { ok: warnings.length === 0, warnings };
+}
+
+function relativeImportSpecifiers(source: string): string[] {
+  return [...source.matchAll(/from\s+['"](\.[^'"]+)['"]/g)].map(m => m[1]);
+}
+
+function missingImportsFor(source: string, importingFile: string, exists: (p: string) => boolean): string[] {
+  const warnings: string[] = [];
+  for (const spec of relativeImportSpecifiers(source)) {
+    const base = `${dirname(importingFile)}/${spec}`;
+    const found = exists(base) || exists(`${base}.ts`) || exists(`${base}.tsx`) || exists(`${base}.js`) || exists(`${base}/index.ts`) || exists(`${base}/index.js`);
+    if (!found) warnings.push(`${importingFile} imports missing ${spec} (resolved ${base})`);
+  }
+  return warnings;
+}
+
+function auditDiff(reply: string, touched: string[]): DiffCompleteness {
+  const warnings = checkDeclaredVsTouched(reply, touched).warnings;
+  for (const p of touched) {
+    if (p.startsWith('-')) continue;
+    if (!/\.(ts|tsx|js)$/.test(p)) continue;
+    if (!existsSync(p)) { warnings.push(`touched file no longer exists after apply: ${p}`); continue; }
+    warnings.push(...missingImportsFor(readFileSync(p, 'utf8'), p, x => existsSync(x)));
+  }
+  return { ok: warnings.length === 0, warnings };
+}
+
+function diffFixtures(): string {
+  const validDeclaration = checkDeclaredVsTouched(
+    `HYPOTHESIS: fixture\n=== FILE agents/roles/judge.md ===\nchanged\n=== END ===\n=== DELETE agents/old.ts ===`,
+    ['agents/roles/judge.md', '-agents/old.ts'],
+  );
+  const incompleteDeclaration = checkDeclaredVsTouched(
+    `HYPOTHESIS: fixture\n=== FILE agents/roles/judge.md ===\nchanged\n=== END ===`,
+    ['agents/roles/judge.md', 'agents/extra.ts'],
+  );
+  const absentImport = missingImportsFor(`import { x } from './missing';`, 'agents/orchestrator.ts', () => false);
+  const presentImport = missingImportsFor(`import { x } from './present';`, 'agents/orchestrator.ts', () => true);
+  return `declaration valid=${validDeclaration.ok}, incomplete=${incompleteDeclaration.ok}; missing-import absent-warns=${absentImport.length > 0}, present-clean=${presentImport.length === 0}`;
 }
 
 async function main() {
@@ -93,7 +162,10 @@ async function main() {
 
   // 2. The proposer changes the world (or the site, or the overseers themselves).
   const context = `${budget}\nFocus this cycle: ${focus}. Steward's note: ${plan.note}\nBaseline metrics: ${baseline}\n\nHow the kernel measures the world (read-only):\n${dump(['kernel/metrics.ts'])}\n\nRecent journal:\n${recentJournal()}\n\nFiles you may edit:\n${dump(tree(focus === 'agents' ? 'agents' : focus))}`;
-  const { hypothesis, touched } = apply(await llm(models[proposer], role(proposer), context));
+  const proposal = await llm(models[proposer], role(proposer), context);
+  const { hypothesis, touched } = apply(proposal);
+  const completeness = auditDiff(proposal, touched);
+  const completenessReport = `ok=${completeness.ok}${completeness.warnings.length ? `; warnings: ${completeness.warnings.join('; ')}` : ''}. fixtures: ${diffFixtures()}`;
 
   // 3. Measure.
   const build = sh('npm run build 2>&1 | tail -5');
@@ -107,13 +179,13 @@ async function main() {
 
   // 4. The judge decides.
   const verdict = json<{ verdict: 'merge' | 'reject'; reasoning: string }>(
-    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nDiff:\n${diff}`), 'judge');
+    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nDiff completeness: ${completenessReport}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nDiff:\n${diff}`), 'judge');
 
   // 5. The chronicler writes it down for the humans watching.
   const journal = await llm(models.chronicler, role('chronicler'),
-    `Iteration ${state.iteration + 1}. Focus: ${focus}. Proposer: ${proposer} (${models[proposer]}). Judge: ${models.judge}.\nSteward's note: ${plan.note}\nHypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ')}\nBaseline: ${baseline}\nCandidate: ${candidate}\nVerdict: ${verdict.verdict} — ${verdict.reasoning}\n\nDiff (excerpt):\n${diff.slice(0, 8000)}`);
+    `Iteration ${state.iteration + 1}. Focus: ${focus}. Proposer: ${proposer} (${models[proposer]}). Judge: ${models.judge}.\nSteward's note: ${plan.note}\nHypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ')}\nDiff completeness: ${completenessReport}\nBaseline: ${baseline}\nCandidate: ${candidate}\nVerdict: ${verdict.verdict} — ${verdict.reasoning}\n\nDiff (excerpt):\n${diff.slice(0, 8000)}`);
 
-  writeFileSync('state/cycle.json', JSON.stringify({ role: proposer, focus, hypothesis, verdict: verdict.verdict, reasoning: verdict.reasoning, cost, journal, models }, null, 2));
+  writeFileSync('state/cycle.json', JSON.stringify({ role: proposer, focus, hypothesis, verdict: verdict.verdict, reasoning: verdict.reasoning, diffCompleteness: completenessReport, cost, journal, models }, null, 2));
 }
 
 main().catch(e => {
