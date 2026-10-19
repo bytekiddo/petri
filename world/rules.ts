@@ -16,6 +16,7 @@ export const RULES = {
   moveCost: 0.01,      // per move, scaled by speed
   crowdingThreshold: 2, // immediate neighbors required before movement is subsidized
   crowdingMoveDiscount: 0.25, // fraction of move cost rebated in crowded cells
+  crowdingReproPenalty: 0.15, // extra energy required to divide per crowded neighbor beyond threshold
   senseCost: 0.003,    // per tick, scaled by sense
   attackThreshold: 0.5,
   attackGain: 0.6,     // fraction of the victim's energy the attacker keeps
@@ -102,8 +103,11 @@ export function stepCreature(c: Creature, env: Env): void {
   c.age++;
   if (c.energy <= 0) { env.kill(c); return; }
 
-  // Divide.
-  if (c.energy > g.reproAt * RULES.maxEnergy) {
+  // Divide. Crowded neighborhoods demand more reserve energy before reproducing,
+  // which slows local booms and leaves gaps for slower or more specialized foragers.
+  const excessNeighbors = Math.max(0, neighbors - RULES.crowdingThreshold);
+  const reproThreshold = g.reproAt * RULES.maxEnergy + excessNeighbors * RULES.crowdingReproPenalty;
+  if (c.energy > reproThreshold) {
     const dx = Math.floor(rng() * 3) - 1, dy = Math.floor(rng() * 3) - 1;
     const nx = (c.x + dx + w) % w, ny = (c.y + dy + h) % h;
     if ((dx || dy) && !env.occupant(nx, ny)) {
