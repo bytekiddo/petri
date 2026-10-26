@@ -16,7 +16,7 @@ export const RULES = {
   moveCost: 0.01,      // per move, scaled by speed
   crowdingThreshold: 2, // immediate neighbors required before movement is subsidized
   crowdingMoveDiscount: 0.25, // fraction of move cost rebated in crowded cells
-  crowdingReproPenalty: 0.15, // extra energy required to divide per crowded neighbor beyond threshold
+  crowdingReproPenalty: 0.18, // extra energy required to divide per crowded neighbor beyond threshold
   senseCost: 0.003,    // per tick, scaled by sense
   attackThreshold: 0.5,
   attackGain: 0.6,     // fraction of the victim's energy the attacker keeps
