@@ -1,12 +1,12 @@
 {
-  "iteration": 114,
+  "iteration": 115,
   "month": "2026-10",
-  "monthSpend": 3.0279291471704997,
+  "monthSpend": 3.0598425221704995,
   "monthlyBudget": 50,
-  "failStreak": 0,
+  "failStreak": 1,
   "models": {
     "steward": "openai/gpt-6-luna-pro",
-    "physicist": "deepseek/deepseek-v4-pro-0813",
+    "physicist": "openai/gpt-6.1-terra-pro",
     "ui_engineer": "deepseek/deepseek-v4.1-flash-1017",
     "judge": "anthropic/claude-sonnet-5.5",
     "chronicler": "anthropic/claude-haiku-5.5"
@@ -15,15 +15,15 @@
     "survival": 1,
     "persistence": 1,
     "diversity": 1,
-    "dynamism": 0.9740710438492821,
-    "complexity": 0.7195696149553573,
-    "score": 0.9314,
+    "dynamism": 0.8552202439068601,
+    "complexity": 0.7303292410714286,
+    "score": 0.9102,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 5061835",
-    "wallMs": 49534
+    "from": "tick 5107147",
+    "wallMs": 51950
   },
-  "lastRun": "2026-10-28T05:55:07.451Z",
+  "lastRun": "2026-10-28T18:26:10.648Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 5061835,
-  "heartbeatAt": "2026-10-28T05:47:33.248Z",
+  "canonTick": 5107147,
+  "heartbeatAt": "2026-10-28T18:22:53.818Z",
   "keyUsage": {
-    "usage": 10.764069312,
+    "usage": 10.795982687,
     "limit": null
   }
 }
