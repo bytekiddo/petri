@@ -1,9 +1,9 @@
 {
-  "iteration": 119,
+  "iteration": 120,
   "month": "2026-10",
-  "monthSpend": 3.3696934271704997,
+  "monthSpend": 3.4168275371704997,
   "monthlyBudget": 50,
-  "failStreak": 2,
+  "failStreak": 0,
   "models": {
     "steward": "openai/gpt-6-luna-pro",
     "physicist": "openai/gpt-6.1-terra-pro",
@@ -14,16 +14,16 @@
   "baseline": {
     "survival": 1,
     "persistence": 1,
-    "diversity": 0.7923982008070689,
-    "dynamism": 1,
-    "complexity": 0.7839093889508929,
-    "score": 0.9092,
+    "diversity": 1,
+    "dynamism": 0.9949113198289797,
+    "complexity": 0.7409406389508929,
+    "score": 0.9408,
     "seeds": 5,
     "ticks": 4000,
-    "from": "tick 5278941",
-    "wallMs": 39874
+    "from": "tick 5321134",
+    "wallMs": 28825
   },
-  "lastRun": "2026-10-30T18:09:10.476Z",
+  "lastRun": "2026-10-31T05:50:50.339Z",
   "genesis": "2026-08-30T15:42:34.270Z",
   "eons": [
     {
@@ -33,10 +33,10 @@
       "endTick": null
     }
   ],
-  "canonTick": 5278941,
-  "heartbeatAt": "2026-10-30T18:05:55.488Z",
+  "canonTick": 5321134,
+  "heartbeatAt": "2026-10-31T05:48:33.432Z",
   "keyUsage": {
-    "usage": 11.105833592,
+    "usage": 11.146918402,
     "limit": null
   }
 }
