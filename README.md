@@ -11,11 +11,11 @@ One small artificial-life world, running at one tick per real second since genes
 Written into this file by the kernel at every heartbeat.
 
 <!-- status:start -->
-**Eon 1** since tick 0 · **canonical tick** 5669229 · **genesis** 2026-08-30T15:42:34.270Z · **heartbeat** 2026-11-04T06:30:26.902Z
+**Eon 1** since tick 0 · **canonical tick** 5717123 · **genesis** 2026-08-30T15:42:34.270Z · **heartbeat** 2026-11-04T19:48:45.405Z
 
-**Iteration** 128 · **last cycle** 2026-11-04T06:35:11.717Z · **world score** 0.9405 · **failure streak** 0
+**Iteration** 129 · **last cycle** 2026-11-04T19:51:05.918Z · **world score** 0.9271 · **failure streak** 1
 
-**Sun (budget)** $0.65 spent of $50 this month (2026-11) · lifetime key usage $11.83
+**Sun (budget)** $0.71 spent of $50 this month (2026-11) · lifetime key usage $11.88
 
 | Role | Mind currently in use |
 |---|---|
