@@ -1,8 +1,9 @@
 // The overseers. This file is theirs: they may rewrite how they work together,
 // as long as they still leave a state/cycle.json for the kernel at the end.
-import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { execSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 const KEY = process.env.OPENROUTER_API_KEY!;
 const ROLES = ['steward', 'physicist', 'ui_engineer', 'judge', 'chronicler'] as const;
@@ -73,33 +74,80 @@ async function marketplace(): Promise<string> {
     .map(m => `${m.id}\t$${perM(m.pricing.prompt)}/$${perM(m.pricing.completion)} per M\tctx ${m.context_length}`).join('\n');
 }
 
-function apply(text: string): { hypothesis: string; touched: string[] } {
-  const hypothesis = /HYPOTHESIS:\s*(.+)/.exec(text)?.[1]?.trim() ?? 'unstated';
-  const touched: string[] = [];
-  for (const m of text.matchAll(/=== FILE (\S+) ===\n([\s\S]*?)\n=== END ===/g)) {
-    const p = m[1];
-    if (p.includes('..') || !ALLOWED.some(a => p === a || p.startsWith(a))) continue;
-    mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, m[2]); touched.push(p);
-  }
-  for (const m of text.matchAll(/=== DELETE (\S+) ===/g)) {
-    const p = m[1];
-    if (p.includes('..') || !ALLOWED.some(a => p.startsWith(a))) continue;
-    if (existsSync(p)) { unlinkSync(p); touched.push(`-${p}`); }
-  }
-  return { hypothesis, touched };
+type FileEdit = { path: string; content: string };
+
+function parseEdits(text: string): { files: FileEdit[]; deletes: string[]; declarations: string } {
+  const files: FileEdit[] = [];
+  // Mask complete blocks before looking for declarations or deletes, so file
+  // contents cannot themselves issue edits or create spurious audit warnings.
+  const declarations = text.replace(/^=== FILE (\S+) ===\n([\s\S]*?)\n=== END ===/gm, (_block, path: string, content: string) => {
+    files.push({ path, content });
+    return `=== FILE ${path} ===`;
+  });
+  const deletes = [...declarations.matchAll(/^=== DELETE (\S+) ===$/gm)].map(m => m[1]);
+  return { files, deletes, declarations };
 }
 
 const allowedEditablePath = (p: string) => !p.includes('..') && ALLOWED.some(a => p === a || p.startsWith(a));
 
+function apply(text: string): { hypothesis: string; touched: string[]; before: Map<string, Buffer | null> } {
+  const hypothesis = /HYPOTHESIS:\s*(.+)/.exec(text)?.[1]?.trim() ?? 'unstated';
+  const touched: string[] = [];
+  const before = new Map<string, Buffer | null>();
+  const remember = (p: string) => {
+    if (!before.has(p)) before.set(p, existsSync(p) ? readFileSync(p) : null);
+  };
+  const edits = parseEdits(text);
+  for (const { path: p, content } of edits.files) {
+    if (!allowedEditablePath(p)) continue;
+    remember(p);
+    mkdirSync(dirname(p), { recursive: true }); writeFileSync(p, content); touched.push(p);
+  }
+  for (const p of edits.deletes) {
+    if (!allowedEditablePath(p)) continue;
+    if (existsSync(p)) { remember(p); unlinkSync(p); touched.push(`-${p}`); }
+  }
+  return { hypothesis, touched, before };
+}
+
+// Compare the bytes present immediately before and after apply(), including new
+// and deleted files. Git's working-tree diff omits untracked files.
+function appliedDiff(before: Map<string, Buffer | null>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'petri-diff-'));
+  try {
+    const sections: string[] = [];
+    for (const [path, oldBytes] of before) {
+      const newBytes = existsSync(path) ? readFileSync(path) : null;
+      if (oldBytes === null && newBytes === null) continue;
+      if (oldBytes !== null && newBytes !== null && oldBytes.equals(newBytes)) continue;
+      const oldPath = oldBytes === null ? '/dev/null' : join(dir, 'before');
+      const newPath = newBytes === null ? '/dev/null' : join(dir, 'after');
+      if (oldBytes !== null) writeFileSync(oldPath, oldBytes);
+      if (newBytes !== null) writeFileSync(newPath, newBytes);
+      const result = spawnSync('git', ['diff', '--no-index', '--no-ext-diff', '--no-color', '--', oldPath, newPath], {
+        encoding: 'utf8', maxBuffer: 16 * 1024 * 1024,
+      });
+      if (result.error || (result.status !== 0 && result.status !== 1)) {
+        throw new Error(`Cannot diff ${path}: ${result.error ?? result.stderr}`);
+      }
+      sections.push(`Applied change: ${path}\n${result.stdout}`);
+    }
+    return sections.join('\n') || '(no byte changes)';
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 function checkDeclaredVsTouched(reply: string, touched: string[]): DiffCompleteness {
   const declared = new Set<string>();
   const warnings: string[] = [];
-  for (const m of reply.matchAll(/=== FILE (\S+) ===/g)) {
+  const { declarations } = parseEdits(reply);
+  for (const m of declarations.matchAll(/^=== FILE (\S+) ===$/gm)) {
     const p = m[1];
     if (!allowedEditablePath(p)) { warnings.push(`unsafe or out-of-scope FILE path ignored: ${p}`); continue; }
     declared.add(p);
   }
-  for (const m of reply.matchAll(/=== DELETE (\S+) ===/g)) {
+  for (const m of declarations.matchAll(/^=== DELETE (\S+) ===$/gm)) {
     const p = m[1];
     if (!allowedEditablePath(p)) { warnings.push(`unsafe or out-of-scope DELETE path ignored: ${p}`); continue; }
     declared.add(`-${p}`);
@@ -135,18 +183,35 @@ function auditDiff(reply: string, touched: string[]): DiffCompleteness {
   return { ok: warnings.length === 0, warnings };
 }
 
-function diffFixtures(): string {
+function diffFixtures(): { ok: boolean; report: string } {
   const validDeclaration = checkDeclaredVsTouched(
     `HYPOTHESIS: fixture\n=== FILE agents/roles/judge.md ===\nchanged\n=== END ===\n=== DELETE agents/old.ts ===`,
     ['agents/roles/judge.md', '-agents/old.ts'],
   );
   const incompleteDeclaration = checkDeclaredVsTouched(
-    `HYPOTHESIS: fixture\n=== FILE agents/roles/judge.md ===\nchanged\n=== END ===`,
-    ['agents/roles/judge.md', 'agents/extra.ts'],
+    `HYPOTHESIS: fixture\n=== FILE agents/roles/judge.md ===\nchanged`,
+    [],
   );
+  const nested = parseEdits(`=== FILE agents/example.ts ===\n=== DELETE agents/old.ts ===\n=== END ===`);
   const absentImport = missingImportsFor(`import { x } from './missing';`, 'agents/orchestrator.ts', () => false);
   const presentImport = missingImportsFor(`import { x } from './present';`, 'agents/orchestrator.ts', () => true);
-  return `declaration valid=${validDeclaration.ok}, incomplete=${incompleteDeclaration.ok}; missing-import absent-warns=${absentImport.length > 0}, present-clean=${presentImport.length === 0}`;
+  const ok = validDeclaration.ok && !incompleteDeclaration.ok &&
+    nested.files.length === 1 && nested.deletes.length === 0 &&
+    absentImport.length > 0 && presentImport.length === 0;
+  return { ok, report: `declaration valid=${validDeclaration.ok}, incomplete=${incompleteDeclaration.ok}; nested-delete ignored=${nested.deletes.length === 0}; missing-import absent-warns=${absentImport.length > 0}, present-clean=${presentImport.length === 0}` };
+}
+
+// Reuse the current Node loader to load the on-disk module without starting a
+// cycle. This is a fixed check, not a command supplied by the proposer.
+function orchestratorLoadCheck(): { ok: boolean; report: string } {
+  const result = spawnSync(process.execPath, [...process.execArgv, 'agents/orchestrator.ts'], {
+    encoding: 'utf8',
+    env: { ...process.env, PETRI_ORCHESTRATOR_LOAD_CHECK: '1' },
+    timeout: 30000,
+    maxBuffer: 1024 * 1024,
+  });
+  const ok = result.status === 0 && !result.error;
+  return { ok, report: `orchestrator load ${ok ? 'ok' : 'failed'}: ${result.stdout}${result.stderr}${result.error ?? ''}`.trim() };
 }
 
 async function main() {
@@ -163,38 +228,46 @@ async function main() {
   // 2. The proposer changes the world (or the site, or the overseers themselves).
   const context = `${budget}\nFocus this cycle: ${focus}. Steward's note: ${plan.note}\nBaseline metrics: ${baseline}\n\nHow the kernel measures the world (read-only):\n${dump(['kernel/metrics.ts'])}\n\nRecent journal:\n${recentJournal()}\n\nFiles you may edit:\n${dump(tree(focus === 'agents' ? 'agents' : focus))}`;
   const proposal = await llm(models[proposer], role(proposer), context);
-  const { hypothesis, touched } = apply(proposal);
+  const { hypothesis, touched, before } = apply(proposal);
+  const diff = appliedDiff(before);
   const completeness = auditDiff(proposal, touched);
-  const completenessReport = `ok=${completeness.ok}${completeness.warnings.length ? `; warnings: ${completeness.warnings.join('; ')}` : ''}. fixtures: ${diffFixtures()}`;
+  const fixtures = diffFixtures();
+  const completenessReport = `ok=${completeness.ok}${completeness.warnings.length ? `; warnings: ${completeness.warnings.join('; ')}` : ''}. fixtures: ${fixtures.report}`;
+  const loadCheck = orchestratorLoadCheck();
 
   // 3. Measure.
   const build = sh('npm run build 2>&1 | tail -5');
   const sim = sh('npm run sim -- --from canon/checkpoint.json --out state/candidate.json 2>&1 | tail -8');
   const candidate = existsSync('state/candidate.json') ? readFileSync('state/candidate.json', 'utf8') : 'sim produced nothing';
-  // Only diff what the overseers may write. canon/ and state/ are kernel-owned and
-  // change every cycle; their huge diffs overflow execSync's buffer (the old
-  // "ERROR" header) and made pre-existing churn look like part of the proposal.
-  const scope = 'world site agents README.md ":!site/public"';
-  const diff = `(scope: ${ALLOWED.join(' ')}; canon/ and state/ are kernel-owned and excluded)\n${sh(`git diff --stat -- ${scope}; git diff -- ${scope}`)}`.slice(0, 30000);
 
   // 4. The judge decides.
   const verdict = json<{ verdict: 'merge' | 'reject'; reasoning: string }>(
-    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nDiff completeness: ${completenessReport}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nDiff:\n${diff}`), 'judge');
+    await llm(models.judge, role('judge'), `Hypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ') || 'none'}\nDiff completeness: ${completenessReport}\nModule check: ${loadCheck.report}\nBaseline: ${baseline}\nCandidate: ${candidate}\nBuild:\n${build}\nSim:\n${sim}\n\nApplied diff:\n${diff}`), 'judge');
+  if (!loadCheck.ok || !fixtures.ok) {
+    verdict.verdict = 'reject';
+    verdict.reasoning = `Workflow check failed. ${loadCheck.report}; ${fixtures.report}. Judge: ${verdict.reasoning}`;
+  }
 
   // 5. The chronicler writes it down for the humans watching.
   const journal = await llm(models.chronicler, role('chronicler'),
-    `Iteration ${state.iteration + 1}. Focus: ${focus}. Proposer: ${proposer} (${models[proposer]}). Judge: ${models.judge}.\nSteward's note: ${plan.note}\nHypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ')}\nDiff completeness: ${completenessReport}\nBaseline: ${baseline}\nCandidate: ${candidate}\nVerdict: ${verdict.verdict} — ${verdict.reasoning}\n\nDiff (excerpt):\n${diff.slice(0, 8000)}`);
+    `Iteration ${state.iteration + 1}. Focus: ${focus}. Proposer: ${proposer} (${models[proposer]}). Judge: ${models.judge}.\nSteward's note: ${plan.note}\nHypothesis: ${hypothesis}\nFiles touched: ${touched.join(', ')}\nDiff completeness: ${completenessReport}\nModule check: ${loadCheck.report}\nBaseline: ${baseline}\nCandidate: ${candidate}\nVerdict: ${verdict.verdict} — ${verdict.reasoning}\n\nApplied diff (excerpt):\n${diff.slice(0, 8000)}`);
 
-  writeFileSync('state/cycle.json', JSON.stringify({ role: proposer, focus, hypothesis, verdict: verdict.verdict, reasoning: verdict.reasoning, diffCompleteness: completenessReport, cost, journal, models }, null, 2));
+  writeFileSync('state/cycle.json', JSON.stringify({ role: proposer, focus, hypothesis, verdict: verdict.verdict, reasoning: verdict.reasoning, diffCompleteness: completenessReport, moduleCheck: loadCheck.report, cost, journal, models }, null, 2));
 }
 
-main().catch(e => {
-  // Even a crash should cost the kernel nothing to understand.
-  // Also retain the fixture in the journal, which outlives state/cycle.json.
-  // Indented JSON avoids letting response text terminate a Markdown fence.
-  const fixture = parseFailure
-    ? `\n\nRecorded parser failure (JSON fixture; not repaired or retried):\n\n${JSON.stringify(parseFailure, null, 2).split('\n').map(line => `    ${line}`).join('\n')}`
-    : '';
-  writeFileSync('state/cycle.json', JSON.stringify({ role: 'overseers', focus: 'crash', hypothesis: 'overseers crashed', verdict: 'reject', reasoning: String(e).slice(0, 800), cost, journal: `The overseers could not complete the cycle.\n\n\`\`\`\n${String(e).slice(0, 800)}\n\`\`\`${fixture}`, models, parseFailure }, null, 2));
-  process.exit(0);
-});
+if (process.env.PETRI_ORCHESTRATOR_LOAD_CHECK === '1') {
+  const fixtures = diffFixtures();
+  console.log(fixtures.report);
+  if (!fixtures.ok) process.exitCode = 1;
+} else {
+  main().catch(e => {
+    // Even a crash should cost the kernel nothing to understand.
+    // Also retain the fixture in the journal, which outlives state/cycle.json.
+    // Indented JSON avoids letting response text terminate a Markdown fence.
+    const fixture = parseFailure
+      ? `\n\nRecorded parser failure (JSON fixture; not repaired or retried):\n\n${JSON.stringify(parseFailure, null, 2).split('\n').map(line => `    ${line}`).join('\n')}`
+      : '';
+    writeFileSync('state/cycle.json', JSON.stringify({ role: 'overseers', focus: 'crash', hypothesis: 'overseers crashed', verdict: 'reject', reasoning: String(e).slice(0, 800), cost, journal: `The overseers could not complete the cycle.\n\n\`\`\`\n${String(e).slice(0, 800)}\n\`\`\`${fixture}`, models, parseFailure }, null, 2));
+    process.exit(0);
+  });
+}
