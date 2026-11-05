@@ -107,7 +107,7 @@ export class World implements Env {
       const periodY = 4300 + ((p * 2371) % 5700);
       const cx = (baseX + Math.sin(this.tick * TAU / periodX + phase) * orbitX + this.w) % this.w;
       const cy = (baseY + Math.cos(this.tick * TAU / periodY + phase * 1.37) * orbitY + this.h) % this.h;
-      const r = 9 + ((p * 11) % 15);
+      const r = 11 + ((p * 11) % 15);
       const scale = 2 * r * r;
 
       for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
