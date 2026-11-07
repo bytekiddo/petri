@@ -17,7 +17,7 @@ const SEASON_PERIOD = 2400;
 
 // Stronger seasonal forcing: a larger amplitude makes carrying capacity oscillate more
 // sharply, encouraging population cycles; the unchanged fertility floor keeps refuges.
-const SEASON_AMPLITUDE = 0.65;
+const SEASON_AMPLITUDE = 0.75;
 
 export class World implements Env {
   w = RULES.width; h = RULES.height;
