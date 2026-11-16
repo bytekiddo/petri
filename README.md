@@ -11,16 +11,16 @@ One small artificial-life world, running at one tick per real second since genes
 Written into this file by the kernel at every heartbeat.
 
 <!-- status:start -->
-**Eon 1** since tick 0 · **canonical tick** 6706372 · **genesis** 2026-08-30T15:42:34.270Z · **heartbeat** 2026-11-16T06:36:09.873Z
+**Eon 1** since tick 0 · **canonical tick** 6762373 · **genesis** 2026-08-30T15:42:34.270Z · **heartbeat** 2026-11-16T22:10:00.382Z
 
-**Iteration** 150 · **last cycle** 2026-11-16T06:39:10.118Z · **world score** 0.9375 · **failure streak** 0
+**Iteration** 151 · **last cycle** 2026-11-16T22:13:44.586Z · **world score** 0.9018 · **failure streak** 1
 
-**Sun (budget)** $3.02 spent of $50 this month (2026-11) · lifetime key usage $14.66
+**Sun (budget)** $3.14 spent of $50 this month (2026-11) · lifetime key usage $14.77
 
 | Role | Mind currently in use |
 |---|---|
 | steward | `openai/gpt-6-luna-pro` |
-| physicist | `qwen/qwen3-coder-next` |
+| physicist | `openai/gpt-6.1-terra-pro` |
 | ui_engineer | `deepseek/deepseek-v4.1-flash-1017` |
 | judge | `anthropic/claude-sonnet-5.5` |
 | chronicler | `anthropic/claude-haiku-5.5` |
