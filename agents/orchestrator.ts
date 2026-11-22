@@ -201,6 +201,51 @@ function diffFixtures(): { ok: boolean; report: string } {
   return { ok, report: `declaration valid=${validDeclaration.ok}, incomplete=${incompleteDeclaration.ok}; nested-delete ignored=${nested.deletes.length === 0}; missing-import absent-warns=${absentImport.length > 0}, present-clean=${presentImport.length === 0}` };
 }
 
+type SimulatorResult = {
+  status: number | null;
+  output: string;
+  stdout: string;
+  stderr: string;
+  error: string;
+};
+
+// Remove any prior artifact before starting. A result is usable only when the
+// process exits successfully and writes a fresh output file.
+function runSimulator(command: string, args: string[], outputPath: string): SimulatorResult {
+  if (existsSync(outputPath)) unlinkSync(outputPath);
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  const status = result.status;
+  const succeeded = status === 0 && !result.error && existsSync(outputPath);
+  return {
+    status,
+    output: succeeded ? readFileSync(outputPath, 'utf8') : '',
+    stdout: String(result.stdout ?? ''),
+    stderr: String(result.stderr ?? ''),
+    error: result.error ? String(result.error) : '',
+  };
+}
+
+// Exercise the same runner used for the simulator: a planted stale artifact
+// must be removed, and a nonzero child exit must not return it as accepted data.
+function simulatorFailureCheck(): { ok: boolean; report: string } {
+  const dir = mkdtempSync(join(tmpdir(), 'petri-simulator-check-'));
+  const outputPath = join(dir, 'candidate.json');
+  try {
+    writeFileSync(outputPath, '{"stale":true}');
+    const result = runSimulator(process.execPath, ['-e', 'process.exit(7)'], outputPath);
+    const ok = result.status === 7 && result.output === '' && !existsSync(outputPath);
+    return {
+      ok,
+      report: `deliberate child failure exit=${result.status}; stale output rejected=${result.output === '' && !existsSync(outputPath)}`,
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 // Reuse the current Node loader to load the on-disk module without starting a
 // cycle. This is a fixed check, not a command supplied by the proposer.
 function orchestratorLoadCheck(): { ok: boolean; report: string } {
@@ -237,8 +282,9 @@ async function main() {
 
   // 3. Measure.
   const build = sh('npm run build 2>&1 | tail -5');
-  const sim = sh('npm run sim -- --from canon/checkpoint.json --out state/candidate.json 2>&1 | tail -8');
-  const candidate = existsSync('state/candidate.json') ? readFileSync('state/candidate.json', 'utf8') : 'sim produced nothing';
+  const simResult = runSimulator('npm', ['run', 'sim', '--', '--from', 'canon/checkpoint.json', '--out', 'state/candidate.json'], 'state/candidate.json');
+  const sim = `${simResult.stdout}${simResult.stderr}${simResult.error}${simResult.status === 0 && simResult.output ? '\nSimulator exited successfully and wrote candidate output.' : `\nSimulator output rejected (exit=${simResult.status}; fresh output=${simResult.output !== ''}).`}`;
+  const candidate = simResult.output || 'sim produced no accepted output';
 
   // 4. The judge decides.
   const verdict = json<{ verdict: 'merge' | 'reject'; reasoning: string }>(
@@ -257,8 +303,9 @@ async function main() {
 
 if (process.env.PETRI_ORCHESTRATOR_LOAD_CHECK === '1') {
   const fixtures = diffFixtures();
-  console.log(fixtures.report);
-  if (!fixtures.ok) process.exitCode = 1;
+  const simulatorCheck = simulatorFailureCheck();
+  console.log(`${fixtures.report}; ${simulatorCheck.report}`);
+  if (!fixtures.ok || !simulatorCheck.ok) process.exitCode = 1;
 } else {
   main().catch(e => {
     // Even a crash should cost the kernel nothing to understand.
